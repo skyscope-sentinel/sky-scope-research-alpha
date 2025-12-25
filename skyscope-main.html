@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skyscope Sentinel Intelligence | Autonomous CLI Dashboard</title>
+    <style>
+        :root {
+            --bg-dark: #0d1117;
+            --bg-panel: #161b22;
+            --border: #30363d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --accent-green: #238636;
+            --accent-cyan: #1f6feb;
+            --accent-blue: #58a6ff;
+            --accent-red: #da3633;
+            --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Utility Classes */
+        .mono { font-family: var(--font-mono); }
+        .text-green { color: #3fb950; }
+        .text-cyan { color: var(--accent-cyan); }
+        .text-red { color: var(--accent-red); }
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .p-2 { padding: 1rem; }
+        .p-4 { padding: 2rem; }
+        .gap-2 { gap: 1rem; }
+        .hidden { display: none; }
+        .w-full { width: 100%; }
+
+        /* Sidebar */
+        aside {
+            width: 260px;
+            background-color: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+        }
+
+        .brand {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--font-mono);
+            font-weight: bold;
+            color: var(--accent-cyan);
+            letter-spacing: -0.5px;
+        }
+
+        .brand small {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            margin-top: 0.5rem;
+        }
+
+        nav {
+            flex: 1;
+            padding: 1rem 0;
+            overflow-y: auto;
+        }
+
+        .nav-item {
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+            font-size: 0.9rem;
+        }
+
+        .nav-item:hover {
+            color: var(--text-primary);
+            background-color: rgba(255,255,255,0.03);
+        }
+
+        .nav-item.active {
+            color: var(--text-primary);
+            background-color: rgba(31, 111, 235, 0.1);
+            border-left-color: var(--accent-cyan);
+        }
+
+        .status-bar {
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: var(--accent-green);
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            box-shadow: 0 0 5px var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        /* Main Content */
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        header {
+            height: 60px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            background-color: var(--bg-panel);
+        }
+
+        .header-title {
+            font-family: var(--font-mono);
+            font-size: 1.1rem;
+        }
+
+        .content-area {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: auto 1fr;
+            gap: 1.5rem;
+            height: 100%;
+        }
+
+        .card {
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card h3 {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            letter-spacing: 1px;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+        }
+
+        .metric-sub {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        /* Terminal / CLI View */
+        .terminal-window {
+            background-color: #000;
+            border: 1px solid #333;
+            border-radius: 6px;
+            font-family: var(--font-mono);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .terminal-header {
+            background-color: #333;
+            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
+            color: #ccc;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .red { background-color: #ff5f56; }
+        .yellow { background-color: #ffbd2e; }
+        .green { background-color: #27c93f; }
+
+        .terminal-body {
+            flex: 1;
+            padding: 1rem;
+            color: #ccc;
+            font-size: 0.9rem;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 1rem;
+            background-color: #27c93f;
+            animation: blink 1s infinite;
+            vertical-align: middle;
+        }
+
+        /* Workflow Board */
+        .workflow-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            height: 100%;
+            overflow-x: auto;
+        }
+
+        .phase-column {
+            background-color: rgba(255,255,255,0.02);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .phase-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .phase-body {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .task-card {
+            background-color: var(--bg-dark);
+            border: 1px solid var(--border);
+            padding: 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s;
+            position: relative;
+        }
+
+        .task-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent-cyan);
+        }
+
+        .task-card.active-task {
+            border-left: 3px solid var(--accent-cyan);
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            margin-right: 0.5rem;
+            background-color: rgba(255,255,255,0.1);
+        }
+
+        /* Agent Grid */
+        .agent-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .agent-card {
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .agent-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan));
+        }
+
+        .agent-status {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .btn {
+            background-color: var(--accent-cyan);
+            color: #fff;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            transition: opacity 0.2s;
+        }
+
+        .btn:hover { opacity: 0.9; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-primary); }
+        .btn-outline:hover { border-color: var(--text-primary); }
+        .btn-small { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+
+        /* Animation */
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #444; }
+
+        .repo-list {
+            list-style: none;
+        }
+        .repo-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+        }
+        .repo-item:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside>
+    <div class="brand">
+        <div>SKYSCOPE SENTINEL</div>
+        <small>INTELLIGENCE | ABN 11287984779</small>
+        <small style="color: var(--accent-cyan); margin-top: 1rem;">Founder: Miss Casey J Topojani</small>
+    </div>
+    <nav>
+        <div class="nav-item active" onclick="switchTab('dashboard', this)">Dashboard (TUI)</div>
+        <div class="nav-item" onclick="switchTab('agents', this)">Specialized Agents</div>
+        <div class="nav-item" onclick="switchTab('workflows', this)">Workflow Orchestrator</div>
+        <div class="nav-item" onclick="switchTab('terminal', this)">System Terminal</div>
+        <div class="nav-item" onclick="switchTab('repos', this)">Repo Manager</div>
+        <div class="nav-item" onclick="switchTab('market', this)">Market Intel</div>
+    </nav>
+    <div class="status-bar">
+        <div style="margin-bottom: 0.5rem;"><span class="status-indicator"></span> SYSTEM ONLINE</div>
+        <div>LATENCY: 12ms</div>
+        <div>CONTEXT: UNIFIED</div>
+    </div>
+</aside>
+
+<!-- Main Content -->
+<main>
+    <header>
+        <div class="header-title" id="page-title">DASHBOARD_VIEW</div>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <div class="mono" style="font-size: 0.8rem; color: var(--text-secondary);">v1.0.4-ASI</div>
+            <button class="btn btn-small" onclick="toggleMetrics()">Refresh</button>
+        </div>
+    </header>
+
+    <div class="content-area" id="content-container">
+        <!-- Content Injected via JS -->
+    </div>
+</main>
+
+<script>
+    // --- State Management ---
+    const state = {
+        agents: [
+            { id: 'research', name: 'Research Agent', role: 'User needs & pain points analysis', status: 'active', tasks: 2 },
+            { id: 'design', name: 'Design Agent', role: 'UI logic & interaction patterns', status: 'idle', tasks: 0 },
+            { id: 'product', name: 'Product Agent', role: 'Feature scope definition', status: 'idle', tasks: 1 },
+            { id: 'code', name: 'Code Agent', role: 'Production-ready components', status: 'active', tasks: 5 }
+        ],
+        workflows: {
+            'research': ['Market Analysis', 'Competitor Review'],
+            'design': ['Wireframing', 'Component Library'],
+            'code': ['Backend API', 'Frontend UI', 'Integration Tests', 'Deployment']
+        },
+        repos: [
+            { url: 'https://github.com/Machina-Labs-Agency/ai-automation-agency.git', name: 'ai-automation-agency' },
+            { url: 'https://github.com/true-automation/ai-content-engine.git', name: 'ai-content-engine' },
+            { url: 'https://github.com/TransformerOptimus/SuperCoder.git', name: 'SuperCoder' },
+            { url: 'https://github.com/n8n-io/self-hosted-ai-starter-kit.git', name: 'n8n-self-hosted' },
+            { url: 'https://github.com/OpenAdaptAI/OpenAdapt.git', name: 'OpenAdapt' },
+            { url: 'https://github.com/sekmet/bytebot-os.git', name: 'Bytebot' },
+            { url: 'https://github.com/Hephaestus/Hephaestus.git', name: 'Hephaestus' } // Added based on context
+        ],
+        terminalLogs: [],
+        currentTab: 'dashboard'
+    };
+
+    // --- Core Functions ---
+
+    function switchTab(tabId, element) {
+        // Update Nav
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        element.classList.add('active');
+        
+        // Update Title
+        const titles = {
+            'dashboard': 'DASHBOARD_VIEW :: REAL-TIME METRICS',
+            'agents': 'AGENT_DEPLOYMENT :: SPECIALIZED UNITS',
+            'workflows': 'WORKFLOW_ORCHESTRATOR :: PHASED EXECUTION',
+            'terminal': 'SYSTEM_TERMINAL :: COMMAND LINE INTERFACE',
+            'repos': 'REPOSITORY_MANAGER :: CLONE & SYNC',
+            'market': 'MARKET_INTELLIGENCE :: MONETIZATION NICHES'
+        };
+        document.getElementById('page-title').innerText = titles[tabId];
+        state.currentTab = tabId;
+
+        // Render Content
+        renderContent(tabId);
+    }
+
+    function renderContent(tabId) {
+        const container = document.getElementById('content-container');
+        container.innerHTML = '';
+
+        switch(tabId) {
+            case 'dashboard': renderDashboard(container); break;
+            case 'agents': renderAgents(container); break;
+            case 'workflows': renderWorkflows(container); break;
+            case 'terminal': renderTerminal(container); break;
+            case 'repos': renderRepos(container); break;
+            case 'market': renderMarket(container); break;
+        }
+    }
+
+    // --- Dashboard View ---
+    function renderDashboard(container) {
+        const html = `
+            <div class="dashboard-grid">
+                <div class="card" style="grid-column: span 1;">
+                    <h3>Active Agents</h3>
+                    <div class="metric-value text-green">2</div>
+                    <div class="metric-sub">of 4 specialized agents running</div>
+                </div>
+                <div class="card" style="grid-column: span 1;">
+                    <h3>Tasks Completed</h3>
+                    <div class="metric-value text-cyan">1,024</div>
+                    <div class="metric-sub">+14% since last session</div>
+                </div>
+                <div class="card" style="grid-column: span 1;">
+                    <h3>System Load</h3>
+                    <div class="metric-value text-primary">34%</div>
+                    <div class="metric-sub">CPU • RAM • GPU Optimal</div>
+                </div>
+                <div class="card" style="grid-column: span 1;">
+                    <h3>Cost (Est)</h3>
+                    <div class="metric-value">$0.42</div>
+                    <div class="metric-sub">Current Session via OpenRouter</div>
+                </div>
+
+                <div class="card" style="grid-column: span 2; grid-row: span 2;">
+                    <h3>Real-Time Agent Traffic</h3>
+                    <div style="flex: 1; display: flex; align-items: center; justify-content: center; position: relative; border: 1px dashed var(--border); border-radius: 4px;">
+                        <!-- Simple visual representation of agent communication -->
+                        <div style="position: absolute; width: 100%; height: 100%; background: repeating-linear-gradient(90deg, transparent, transparent 49px, rgba(255,255,255,0.02) 50px);"></div>
+                        <div style="z-index: 1; text-align: center;">
+                            <div class="text-cyan mono">RESEARCH -> DESIGN</div>
+                            <div style="margin: 1rem 0; color: var(--text-secondary);">↕</div>
+                            <div class="text-cyan mono">PRODUCT <-> CODE</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="grid-column: span 2; grid-row: span 2;">
+                    <h3>Live Activity Log</h3>
+                    <div style="flex: 1; overflow-y: auto; font-family: var(--font-mono); font-size: 0.8rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                        <div><span class="text-green">[10:42:01]</span> Code Agent generated React component.</div>
+                        <div><span class="text-green">[10:41:55]</span> Design Agent approved UI flow.</div>
+                        <div><span class="text-green">[10:41:30]</span> Research Agent updated context.</div>
+                        <div><span class="text-red">[10:40:15]</span> Build failed: SyntaxError fixed.</div>
+                        <div><span class="text-green">[10:38:22]</span> Product Agent defined new KPIs.</div>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+    }
+
+    // --- Agents View ---
+    function renderAgents(container) {
+        let html = '<div class="agent-grid">';
+        state.agents.forEach(agent => {
+            const statusColor = agent.status === 'active' ? 'var(--accent-green)' : 'var(--text-secondary)';
+            const btnText = agent.status === 'active' ? 'Stop' : 'Start';
+            
+            html += `
+                <div class="agent-card">
+                    <div class="agent-status" style="background-color: ${statusColor}; box-shadow: 0 0 10px ${statusColor};"></div>
+                    <h2 style="margin-bottom: 0.5rem; font-size: 1.2rem;">${agent.name}</h2>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem; min-height: 40px;">${agent.role}</p>
+                    <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 1rem;">
+                        <span class="mono text-small">Active Tasks: <b>${agent.tasks}</b></span>
+                        <button class="btn btn-small" onclick="toggleAgent('${agent.id}')">${btnText}</button>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function toggleAgent(id) {
+        const agent = state.agents.find(a => a.id === id);
+        if (agent) {
+            agent.status = agent.status === 'active' ? 'idle' : 'active';
+            // Log to terminal
+            logTerminal(`System: ${agent.name} state changed to ${agent.status.toUpperCase()}`);
+            renderAgents(document.getElementById('content-container'));
+        }
+    }
+
+    // --- Workflows View ---
+    function renderWorkflows(container) {
+        const phases = [
+            { id: 'research', title: 'PHASE 1: RESEARCH', desc: 'Map user needs & pain points' },
+            { id: 'design', title: 'PHASE 2: DESIGN', desc: 'Structure user flows & UI logic' },
+            { id: 'code', title: 'PHASE 3: CODE', desc: 'Generate production components' }
+        ];
+
+        let html = '<div class="workflow-board">';
+        phases.forEach(phase => {
+            const tasks = state.workflows[phase.id] || [];
+            let taskHtml = '';
+            
+            tasks.forEach(task => {
+                taskHtml += `
+                    <div class="task-card active-task" onclick="simulateTask('${task}')">
+                        <div style="font-weight: bold; margin-bottom: 0.5rem;">${task}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">
+                            <span class="tag">PENDING</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                <div class="phase-column">
+                    <div class="phase-header">
+                        <div>${phase.title}</div>
+                        <span style="font-size: 1.2rem; cursor: pointer;">+</span>
+                    </div>
+                    <div class="phase-body" id="phase-${phase.id}">
+                        ${taskHtml}
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function simulateTask(taskName) {
+        logTerminal(`Workflow: Executing task '${taskName}'...`);
+        setTimeout(() => {
+            logTerminal(`Workflow: Task '${taskName}' completed successfully.`);
+        }, 1500);
+    }
+
+    // --- Terminal View (The Bash Script Generator) ---
+    function renderTerminal(container) {
+        // The actual script the user requested, simulated in the terminal
+        const scriptContent = `#!/bin/bash
+
+# Skyscope Sentinel Intelligence - AGI Bootstrap Script
+# Founder: Miss Casey J Topojani
+# ABN: 11287984779
+
+echo "Initializing Skyscope Sentinel Intelligence Environment..."
+
+# 1. System Prerequisites
+echo "[1/5] Checking system requirements..."
+if ! command -v docker &> /dev/null; then
+    echo "Error: Docker is not installed. Aborting."
+    exit 1
+fi
+
+# 2. Core Repositories
+echo "[2/5] Cloning Core Repositories..."
+mkdir -p ~/SkyscopeSentinel
+cd ~/SkyscopeSentinel
+
+# Hephaestus (Orchestrator)
+git clone https://github.com/Hephaestus/Hephaestus.git
+
+# SuperCoder (Dev Agent)
+git clone https://github.com/TransformerOptimus/SuperCoder.git
+
+# OpenAdapt (Desktop Agent)
+git clone https://github.com/OpenAdaptAI/OpenAdapt.git
+
+# Bytebot (Desktop Env)
+git clone https://github.com/sekmet/bytebot-os.git
+
+# Strands Tools (Utilities)
+git clone https://github.com/strands-agents/tools.git
+
+# 3. Docker Infrastructure (No Reset/Reimplement)
+echo "[3/5] Checking containers..."
+if [ ! "$(docker ps -q -f name=hephaestus)" ]; then
+    echo "Starting Hephaestus..."
+    cd Hephaestus
+    docker-compose up -d
+fi
+
+# 4. Environment Configuration
+echo "[4/5] Configuring Environment Variables..."
+# Using OpenRouter for LLM access as requested
+export OPENROUTER_API_KEY="${process.env.OPENROUTER_API_KEY}"
+export LLM_PROVIDER="openrouter"
+
+# 5. Launching Dashboard
+echo "[5/5] Launching Dashboard Interface..."
+echo "System Ready. Access TUI at http://localhost:3000"
+`;
+
+        const html = `
+            <div class="flex flex-col gap-2">
+                <div style="background: var(--bg-panel); padding: 1rem; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 1rem;">
+                    <h3 style="margin-bottom: 0.5rem;">Deploy Skyscope Sentinel</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                        This script installs the full Skyscope stack locally. It clones repositories (Hephaestus, SuperCoder, etc.), checks Docker containers without resetting them, and configures OpenRouter endpoints.
+                    </p>
+                    <button class="btn" onclick="runScript()">Execute Deployment Script</button>
+                    <button class="btn btn-outline" style="margin-left: 0.5rem;" onclick="copyScript()">Copy Script</button>
+                </div>
+                <div class="terminal-window" id="term-window">
+                    <div class="terminal-header">
+                        <div class="dot red"></div>
+                        <div class="dot yellow"></div>
+                        <div class="dot green"></div>
+                        <span style="margin-left: 0.5rem;">user@skyscope-sentinel:~</span>
+                    </div>
+                    <div class="terminal-body" id="terminal-output">
+                        <div>Welcome to Skyscope Sentinel Intelligence CLI</div>
+                        <div>Type 'help' for commands or click Execute above.</div>
+                        <br>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+        
+        // Store script for execution
+        window.deploymentScript = scriptContent;
+    }
+
+    function logTerminal(text) {
+        const output = document.getElementById('terminal-output');
+        if(output) {
+            const time = new Date().toLocaleTimeString('en-US', {hour12: false});
+            const line = document.createElement('div');
+            line.innerHTML = `<span style="color: #666">[${time}]</span> ${text}`;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+        }
+    }
+
+    function runScript() {
+        const output = document.getElementById('terminal-output');
+        output.innerHTML = ''; // Clear previous
+        const lines = window.deploymentScript.split('\n');
+        let delay = 0;
+
+        lines.forEach((line, index) => {
+            setTimeout(() => {
+                logTerminal(`<span style="color: #27c93f">$</span> ${line}`);
+            }, delay);
+            delay += Math.random() * 100 + 50; // Typing effect speed
+        });
+
+        setTimeout(() => {
+            logTerminal(`<br><span class="text-cyan">[SUCCESS]</span> Skyscope Sentinel Environment Initialized.`);
+            logTerminal(`Open Dashboard: http://localhost:3000`);
+        }, delay + 1000);
+    }
+
+    function copyScript() {
+        if(window.deploymentScript) {
+            navigator.clipboard.writeText(window.deploymentScript);
+            logTerminal('Script copied to clipboard.');
+        }
+    }
+
+    // --- Repo Manager ---
+    function renderRepos(container) {
+        let html = `
+            <div style="display: grid; grid-template-columns: 300px 1fr; gap: 2rem; height: 100%;">
+                <div class="card">
+                    <h3>Repository List</h3>
+                    <div style="margin-bottom: 1rem;">
+                        <input type="text" placeholder="Search..." style="width: 100%; padding: 0.5rem; background: var(--bg-dark); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px;">
+                    </div>
+                    <ul class="repo-list" style="overflow-y: auto; flex: 1;">
+                        ${state.repos.map(r => `
+                            <li class="repo-item" onclick="selectRepo('${r.url}')">
+                                <span>${r.name}</span>
+                                <button class="btn btn-small btn-outline">Clone</button>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3>Repository Details</h3>
+                    <div id="repo-details" style="color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.9rem;">
+                        Select a repository to view details and clone commands.
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+    }
+
+    function selectRepo(url) {
+        const details = document.getElementById('repo-details');
+        const name = url.split('/').pop().replace('.git', '');
+        const cmd = `git clone ${url}`;
+        
+        details.innerHTML = `
+            <div style="margin-bottom: 1rem;">
+                <div class="text-green">NAME:</div> ${name}
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <div class="text-green">URL:</div> ${url}
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <div class="text-green">COMMAND:</div> 
+                <div style="background: #000; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; border: 1px solid #333;">${cmd}</div>
+            </div>
+            <button class="btn" onclick="logTerminal('Executing: ${cmd}')">Execute in Terminal</button>
+        `;
+    }
+
+    // --- Market Intel ---
+    function renderMarket(container) {
+        const niches = [
+            "Local Lead Generation", "Digital Marketing", "SaaS", "E-commerce", 
+            "Legal Services", "Real Estate", "Manufacturing", "HR & Recruitment"
+        ];
+        
+        let html = `
+            <div class="card">
+                <h3>Top AI Automation Niches (2025)</h3>
+                <p style="margin-bottom: 1.5rem; color: var(--text-secondary);">
+                    Data source: Industry Analysis. High demand for autonomous agents in these sectors.
+                </p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
+                    ${niches.map(n => `
+                        <div style="border: 1px solid var(--border); padding: 1rem; border-radius: 4px; background: rgba(255,255,255,0.02);">
+                            <div style="font-weight: bold; margin-bottom: 0.5rem;">${n}</div>
+                            <div style="font-size: 0.8rem; color: var(--accent-cyan);">High Potential</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+    }
+
+    // Initialize
+    renderContent('dashboard');
+
+</script>
+</body>
+</html>
